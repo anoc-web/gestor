@@ -222,6 +222,31 @@ html.admin-mode{ --accent: var(--accent-admin); }
   font-size:13px;
 }
 
+/* Profile area */
+.profile-area{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  user-select:none;
+}
+.profile-avatar{
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.04);
+  object-fit:cover;
+  background:rgba(255,255,255,0.02);
+}
+.profile-name{
+  font-size:13px;
+  color:var(--muted);
+  max-width:160px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
 /* Login overlay */
 .overlay{
   position:fixed;
@@ -270,7 +295,60 @@ html.admin-mode{ --accent: var(--accent-admin); }
 .readonly-item .edit{display:none}
 .readonly-item .delete{display:none}
 
+/* Link preview card shown on hover */
+.link-preview{
+  position:fixed;
+  z-index:80;
+  width:280px;
+  max-width:calc(100vw - 32px);
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.04);
+  padding:10px;
+  border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.6);
+  color:var(--text);
+  pointer-events:none;
+  transform-origin:top left;
+  transition:opacity .12s ease, transform .12s ease;
+  opacity:0;
+  transform:scale(.98);
+  font-size:13px;
+}
+.link-preview.visible{ opacity:1; transform:scale(1); }
+.link-preview .pv-row{display:flex;gap:8px;align-items:flex-start}
+.link-preview .pv-favicon{width:36px;height:36px;border-radius:6px;flex:0 0 36px;background:rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center}
+.link-preview .pv-title{font-weight:700;margin-bottom:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-preview .pv-url{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-preview .pv-desc{margin-top:6px;color:var(--muted);font-size:13px;max-height:72px;overflow:hidden}
+
 /* Responsive small screens: ensure everything fits one viewport height */
 @media (max-height:700px){
   .links{max-height:34vh}
+}
+
+/* Collapsible code preview in Código view: collapsed by default, expand on toggle */
+.code-item .code{
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 220ms ease, opacity 180ms ease;
+  opacity: 0;
+  white-space: pre-wrap;
+}
+.code-item .code.expanded{
+  opacity: 1;
+  /* when expanded we let JS set max-height to content height for smooth transition */
+}
+.code-item .title{
+  cursor: pointer;
+  user-select: none;
+}
+.code-item .title::after{
+  content: ' ▸';
+  font-weight:600;
+  color:var(--muted);
+  margin-left:8px;
+  transition: transform .18s ease;
+}
+.code-item .title.expanded::after{
+  transform: rotate(90deg);
 }
