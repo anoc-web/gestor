@@ -1,4 +1,20 @@
 /* Minimal link manager using localStorage. Single-screen, touch-friendly. Added drag-and-drop reorder and simple auth. */
+/* Import highlight.js core and common languages via esm.sh import map for syntax highlighting */
+import hljs from 'hljs-core';
+import javascript from 'hljs-js';
+import typescript from 'hljs-ts';
+import css from 'hljs-css';
+import xml from 'hljs-html';
+import python from 'hljs-python';
+import bash from 'hljs-bash';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('bash', bash);
+
 const STORAGE_KEY = 'links.v1';
 const STORAGE_CODE_KEY = 'codes.v1';
 const AUTH_KEY = 'session.v1'; // store username when logged in
@@ -40,6 +56,61 @@ const loginUser = el('loginUser');
 const loginPass = el('loginPass');
 const toast = el('toast');
 const statusBadge = el('statusBadge');
+
+// profile elements & storage key
+const PROFILE_KEY = 'profile.v1';
+const profileAvatarEl = el('profileAvatar');
+const profileNameEl = el('profileName');
+const profileOverlay = el('profileOverlay');
+const profileNameInput = el('profileNameInput');
+const profileAvatarInput = el('profileAvatarInput');
+const saveProfileBtn = el('saveProfile');
+const cancelProfileBtn = el('cancelProfile');
+
+let profile = { name: 'Guest', avatar: 'https://www.gravatar.com/avatar/?d=mp' };
+
+function loadProfile(){
+  try{
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if(raw) profile = JSON.parse(raw);
+  }catch(e){}
+  updateProfileUI();
+}
+function saveProfile(){
+  try{
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  }catch(e){}
+  updateProfileUI();
+}
+function updateProfileUI(){
+  profileAvatarEl.src = profile.avatar || 'https://www.gravatar.com/avatar/?d=mp';
+  profileNameEl.textContent = profile.name || 'Guest';
+  // status badge reflects admin/guest
+  statusBadge.textContent = isAdmin ? 'Admin' : 'Guest';
+}
+
+// profile overlay handlers
+profileAvatarEl.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  profileNameInput.value = profile.name === 'Guest' ? '' : profile.name;
+  profileAvatarInput.value = profile.avatar || '';
+  profileOverlay.style.display = 'block';
+  profileOverlay.setAttribute('aria-hidden','false');
+  profileNameInput.focus();
+});
+saveProfileBtn.addEventListener('click', ()=>{
+  const name = (profileNameInput.value || '').trim();
+  const avatar = (profileAvatarInput.value || '').trim();
+  profile.name = name || (isAdmin ? 'Admin' : 'Guest');
+  profile.avatar = avatar || 'https://www.gravatar.com/avatar/?d=mp';
+  saveProfile();
+  profileOverlay.style.display = 'none';
+  profileOverlay.setAttribute('aria-hidden','true');
+});
+cancelProfileBtn.addEventListener('click', ()=>{
+  profileOverlay.style.display = 'none';
+  profileOverlay.setAttribute('aria-hidden','true');
+});
 
 let links = [];
 let codes = [];
@@ -111,6 +182,37 @@ function showToast(msg, timeout = 1800){
   setTimeout(()=> toast.classList.remove('visible'), timeout);
 }
 
+/* robust copy helper: try navigator.clipboard, otherwise fallback to textarea+execCommand */
+async function copyText(text){
+  if(!text) return false;
+  // try modern clipboard API first
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  }catch(e){
+    // continue to fallback
+  }
+  // fallback method
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    // prevent flash on mobile
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.setAttribute('readonly','');
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){
+    return false;
+  }
+}
+
 function setAdminState(state){
   isAdmin = !!state;
   if(isAdmin){
@@ -128,6 +230,60 @@ function setAdminState(state){
   if(isAdmin) localStorage.setItem(AUTH_KEY, CREDENTIALS.user);
   else localStorage.removeItem(AUTH_KEY);
   render(); // re-render to show/hide UI controls
+}
+
+/* Link preview helpers: fetch page title/description (best-effort) and show a small card next to cursor */
+const previewEl = (()=>{
+  const d = document.createElement('div');
+  d.className = 'link-preview';
+  d.innerHTML = '<div class="pv-row"><div class="pv-favicon"></div><div style="flex:1"><div class="pv-title"></div><div class="pv-url"></div></div></div><div class="pv-desc"></div>';
+  document.body.appendChild(d);
+  return d;
+})();
+
+let previewTimeout = null;
+let lastPreviewUrl = null;
+
+async function fetchPreviewData(url){
+  // best-effort: try to fetch page HTML and parse title/meta description; may fail due to CORS
+  try{
+    const res = await fetch(url, { mode: 'cors' });
+    const txt = await res.text();
+    const doc = new DOMParser().parseFromString(txt, 'text/html');
+    const title = (doc.querySelector('title') || {}).textContent || '';
+    const descEl = doc.querySelector('meta[name="description"]') || doc.querySelector('meta[property="og:description"]') || {};
+    const desc = descEl.content || '';
+    return { title: title.trim(), description: desc.trim() };
+  }catch(err){
+    return null;
+  }
+}
+
+function showPreviewAt(targetRect, data){
+  const el = previewEl;
+  const padding = 10;
+  // position to the right if enough space, otherwise left
+  const viewportW = window.innerWidth;
+  let left = targetRect.right + 12;
+  if(left + el.offsetWidth + padding > viewportW){
+    left = targetRect.left - el.offsetWidth - 12;
+    if(left < padding) left = padding;
+  }
+  let top = Math.max(padding, targetRect.top);
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
+  // fill content
+  el.querySelector('.pv-favicon').innerHTML = `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(data.domain)}&sz=64" alt="" style="width:20px;height:20px">`;
+  el.querySelector('.pv-title').textContent = data.title || data.domain;
+  el.querySelector('.pv-url').textContent = data.url;
+  el.querySelector('.pv-desc').textContent = data.description || '';
+  el.classList.add('visible');
+}
+
+function hidePreview(){
+  previewEl.classList.remove('visible');
+  lastPreviewUrl = null;
+  if(previewTimeout){ clearTimeout(previewTimeout); previewTimeout = null; }
 }
 
 function tryRestoreSession(){
@@ -179,13 +335,13 @@ function render(){
 
       node.querySelector('.copy').addEventListener('click', async e=>{
         e.stopPropagation();
-        try{
-          await navigator.clipboard.writeText(item.url);
+        const ok = await copyText(item.url);
+        if(ok){
           const btn = e.currentTarget;
           const old = btn.textContent;
           btn.textContent = '✅';
           setTimeout(()=> btn.textContent = old, 1200);
-        }catch(err){
+        }else{
           alert('No se pudo copiar');
         }
       });
@@ -240,6 +396,35 @@ function render(){
         target.classList.remove('over');
       });
 
+      // Hover preview: show a mini preview card on mouseenter (best-effort fetch)
+      node.addEventListener('mouseenter', (e)=>{
+        const rect = node.getBoundingClientRect();
+        const url = item.url;
+        lastPreviewUrl = url;
+        // small delay to avoid flicker
+        previewTimeout = setTimeout(async ()=>{
+          // optimistic fallback data
+          const base = new URL(url, window.location.href);
+          const fallback = { title: item.title || base.hostname, description: '', url, domain: base.hostname };
+          // try to fetch metadata
+          const data = await fetchPreviewData(url) || {};
+          const merged = { title: data?.title || fallback.title, description: data?.description || fallback.description, url: fallback.url, domain: fallback.domain };
+          // if the hovered item changed meanwhile, skip
+          if(lastPreviewUrl !== url) return;
+          showPreviewAt(rect, merged);
+        }, 220);
+      });
+      node.addEventListener('mousemove', (e)=>{
+        // update position as cursor moves
+        if(previewEl.classList.contains('visible')){
+          const r = node.getBoundingClientRect();
+          showPreviewAt(r, { title: previewEl.querySelector('.pv-title').textContent, description: previewEl.querySelector('.pv-desc').textContent, url: item.url, domain: (new URL(item.url,location.href)).hostname });
+        }
+      });
+      node.addEventListener('mouseleave', (e)=>{
+        hidePreview();
+      });
+
       listEl.appendChild(node);
     }
 
@@ -266,16 +451,62 @@ function render(){
       const node = codeTpl.content.firstElementChild.cloneNode(true);
       node.dataset.id = item.id;
       if(!isAdmin) node.classList.add('readonly-item');
-      node.querySelector('.title').textContent = item.title || 'Sin título';
-      node.querySelector('.code').textContent = item.content || '';
+
+      // title and collapsed code content
+      const titleEl = node.querySelector('.title');
+      const preEl = node.querySelector('.code');
+      titleEl.textContent = item.title || 'Sin título';
+      // use highlight.js to render code with syntax highlighting (auto-detect)
+      const content = item.content || '';
+      try{
+        const highlighted = hljs.highlightAuto(content);
+        preEl.innerHTML = highlighted.value;
+        // ensure pre has language class if auto-detected
+        if(highlighted.language) preEl.classList.add('language-' + highlighted.language);
+      }catch(e){
+        // fallback to plain text
+        preEl.textContent = content;
+      }
+
+      // initialize collapsed state
+      preEl.classList.remove('expanded');
+      titleEl.classList.remove('expanded');
+      // ensure collapsed max-height for CSS transition
+      preEl.style.maxHeight = '0px';
+
+      // clicking the title toggles the code block
+      titleEl.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const willExpand = !preEl.classList.contains('expanded');
+        if(willExpand){
+          preEl.classList.add('expanded');
+          titleEl.classList.add('expanded');
+          // set max-height to scrollHeight to animate open
+          preEl.style.maxHeight = preEl.scrollHeight + 20 + 'px';
+        }else{
+          preEl.classList.remove('expanded');
+          titleEl.classList.remove('expanded');
+          preEl.style.maxHeight = '0px';
+        }
+      });
+
+      // also allow clicking the whole node to toggle for easier touch interaction
+      node.addEventListener('click', (e)=>{
+        // ignore clicks on action buttons
+        if(e.target.closest('.item-actions')) return;
+        titleEl.click();
+      });
+
       const copyBtn = node.querySelector('.copy');
       copyBtn.addEventListener('click', async e=>{
         e.stopPropagation();
-        try{
-          await navigator.clipboard.writeText(item.content || '');
+        const ok = await copyText(item.content || '');
+        if(ok){
           const b = e.currentTarget; const old = b.textContent;
           b.textContent = '✅'; setTimeout(()=> b.textContent = old, 1200);
-        }catch(err){ alert('No se pudo copiar'); }
+        }else{
+          alert('No se pudo copiar');
+        }
       });
       const editBtn = node.querySelector('.edit');
       editBtn.addEventListener('click', e=>{
@@ -420,5 +651,6 @@ logoutBtn.addEventListener('click', ()=>{
 
 /* initial load */
 loadAll();
+loadProfile();
 tryRestoreSession();
 render();
