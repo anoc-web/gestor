@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<main id="app">
+  <!-- Header menu -->
+  <header class="topbar">
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button class="tab active" id="tab-links" data-view="links" role="tab" aria-selected="true">Enlaces</button>
+      <button class="tab" id="tab-code" data-view="code" role="tab" aria-selected="false">Código</button>
+    </nav>
+  </header>
+
+  <!-- Links view -->
+  <section class="view view-links" data-view="links">
+    <section class="panel add-panel" aria-label="Añadir enlace">
+      <div class="row">
+        <input id="url" inputmode="url" placeholder="https://..." autocomplete="off" />
+        <button id="paste" title="Pegar URL">📋</button>
+      </div>
+      <div class="row">
+        <input id="title" placeholder="Título (opcional)" autocomplete="off" />
+      </div>
+      <div class="row actions">
+        <div class="actions-left">
+          <button id="add" class="primary">Guardar</button>
+        </div>
+        <div class="actions-right">
+          <button id="clear" class="secondary">Limpiar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel list-panel" aria-label="Lista de enlaces">
+      <div class="controls">
+        <input id="search" placeholder="Buscar título, URL o etiqueta" />
+        <select id="filterTag"><option value="">Filtrar etiqueta</option></select>
+        <div class="export">
+          <button id="export">Exportar</button>
+          <input id="importFile" type="file" accept="application/json" />
+          <button id="import">Importar</button>
+        </div>
+      </div>
+      <ul id="list" class="links"></ul>
+      <div id="empty" class="empty">No hay enlaces guardados.</div>
+    </section>
+  </section>
+
+  <!-- Code view -->
+  <section class="view view-code" data-view="code" style="display:none;">
+    <section class="panel add-panel" aria-label="Añadir código">
+      <div class="row" style="flex-direction:column;gap:8px">
+        <input id="codeTitle" placeholder="Título (p.ej. Función rápida)" autocomplete="off" />
+        <textarea id="codeContent" placeholder="// Tu código aquí" rows="6"></textarea>
+      </div>
+      <div class="row actions">
+        <div class="actions-left">
+          <button id="addCode" class="primary">Guardar</button>
+        </div>
+        <div class="actions-right">
+          <button id="clearCode" class="secondary">Limpiar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel list-panel" aria-label="Lista de códigos">
+      <div class="controls">
+        <input id="searchCode" placeholder="Buscar título o contenido" />
+      </div>
+      <ul id="codeList" class="links"></ul>
+      <div id="emptyCode" class="empty">No hay snippets guardados.</div>
+    </section>
+  </section>
+
+  <template id="itemTpl">
+    <li class="item">
+      <a class="link" target="_blank" rel="noopener noreferrer">
+        <div class="meta">
+          <div class="title"></div>
+          <div class="url"></div>
+        </div>
+      </a>
+      <div class="badge-row"></div>
+      <div class="item-actions">
+        <button class="open" title="Abrir">🔗</button>
+        <button class="copy" title="Copiar enlace">📋</button>
+        <button class="edit" title="Editar">✏️</button>
+        <button class="delete" title="Eliminar">🗑️</button>
+      </div>
+    </li>
+  </template>
+
+  <!-- template for code item -->
+  <template id="codeTpl">
+    <li class="item code-item">
+      <div class="meta" style="flex:1">
+        <div class="title"></div>
+        <pre class="code" style="margin:6px 0;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);overflow:auto;max-height:160px"></pre>
+      </div>
+      <div class="item-actions">
+        <button class="copy" title="Copiar código">📋</button>
+        <button class="edit" title="Editar">✏️</button>
+        <button class="delete" title="Eliminar">🗑️</button>
+      </div>
+    </li>
+  </template>
+</main>
+
+<!-- Footer with Login/Logout -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-actions">
+      <button id="loginBtn" class="link-btn icon" title="Login">🔒</button>
+      <button id="logoutBtn" class="link-btn" title="Logout" style="display:none">Logout</button>
+    </div>
+    <div id="statusBadge" class="status-badge">Guest</div>
+  </div>
+</footer>
+
+<!-- Login overlay (hidden by default) -->
+<div id="loginOverlay" class="overlay" aria-hidden="true">
+  <div class="overlay-panel" role="dialog" aria-modal="true" aria-label="Login">
+    <div class="form-row">
+      <input id="loginUser" placeholder="Username" autocomplete="username" />
+    </div>
+    <div class="form-row">
+      <input id="loginPass" placeholder="Password" type="password" autocomplete="current-password" />
+    </div>
+    <div class="form-row form-actions">
+      <button id="doLogin" class="primary">Entrar</button>
+      <button id="cancelLogin" class="secondary">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification toast -->
+<div id="toast" class="toast" aria-live="polite" role="status"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
